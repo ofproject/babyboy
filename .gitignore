@@ -10,3 +10,36 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+/tmp
+*/**/*un~
+*/**/*.test
+*un~
+.DS_Store
+*/**/.DS_Store
+.ethtest
+*/**/*tx_database*
+*/**/*dapps*
+build/_vendor/pkg
+
+#*
+.#*
+*#
+*~
+.project
+.settings
+
+
+# IdeaIDE
+.idea
+
+# VS Code
+.vscode
+
+# used by the Makefile
+/build/_workspace/
+#/build/bin/
+/geth*.zip
+
+
+
