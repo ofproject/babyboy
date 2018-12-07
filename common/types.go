@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
-	"babyboy-dag/common/hexutil"
-	"babyboy-dag/crypto/sha3"
+	"babyboy/common/hexutil"
+	"babyboy/crypto/sha3"
 )
 
 // Lengths of hashes and addresses in bytes.

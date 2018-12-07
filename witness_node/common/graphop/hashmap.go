@@ -3,8 +3,8 @@ package ds
 import (
 	"sync"
 
-	"babyboy-dag/common"
-	"babyboy-dag/core/types"
+	"babyboy/common"
+	"babyboy/core/types"
 )
 
 // a map that stores element hashes and cell contents HashMap struct {
