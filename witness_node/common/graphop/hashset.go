@@ -1,7 +1,7 @@
 package ds
 
 import (
-	"babyboy-dag/common"
+	"babyboy/common"
 	"sync"
 )
 
