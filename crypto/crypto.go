@@ -12,10 +12,10 @@ import (
 	"math/big"
 	"os"
 
-	"babyboy-dag/common"
-	"babyboy-dag/common/math"
-	"babyboy-dag/crypto/sha3"
-	"babyboy-dag/rlp"
+	"github.com/babyboy/common"
+	"github.com/common/math"
+	"github.com/crypto/sha3"
+	"github.com/rlp"
 )
 
 var (
