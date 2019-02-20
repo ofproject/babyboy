@@ -59,12 +59,10 @@ func (tr *Transaction) BackTrackingHasSpentUTXO(unspent types.UTXO) []types.UTXO
 }
 
 func (tr *Transaction) isAddInputHasSpent(curUnit types.Unit, index int, ch chan ResultBack) {
-
-	// 根据索引找到前一个单元中对应的UTXO
+	
 	utype := curUnit.Messages[0].Payload.Inputs[index].Type
 	preUTXO := types.UTXO{}
 
-	// 普通UTXO通过当前单元得到输入构建
 	switch utype {
 	case "wc":
 		input := curUnit.Messages[0].Payload.Inputs[index]
@@ -72,10 +70,8 @@ func (tr *Transaction) isAddInputHasSpent(curUnit types.Unit, index int, ch chan
 		if err != nil {
 			log.Println(err)
 		}
-		//commission := inputUnit.PayloadCommission
 		preUTXO = types.NewUTXO(inputUnit.Hash, 0, 0, input.Output, input.Type)
 
-		// 这笔Stable池中的UTXO是否存在
 		existStableUTXO := boydb.GetDbInstance().IsExistUnspentOutput(preUTXO)
 		ch <- ResultBack{stable: inputUnit.IsStable, exist: existStableUTXO, utxo: preUTXO}
 		break
@@ -85,10 +81,8 @@ func (tr *Transaction) isAddInputHasSpent(curUnit types.Unit, index int, ch chan
 		if err != nil {
 			log.Println(err)
 		}
-		//commission := inputUnit.HeadersCommission
 		preUTXO = types.NewUTXO(inputUnit.Hash, 0, 0, input.Output, input.Type)
 
-		// 这笔Stable池中的UTXO是否存在
 		existStableUTXO := boydb.GetDbInstance().IsExistUnspentOutput(preUTXO)
 		ch <- ResultBack{stable: inputUnit.IsStable, exist: existStableUTXO, utxo: preUTXO}
 		break
@@ -102,7 +96,6 @@ func (tr *Transaction) isAddInputHasSpent(curUnit types.Unit, index int, ch chan
 		outputIdx := curUnit.Messages[messageIdx].Payload.Inputs[index].OutputIndex
 		preUTXO = types.NewUTXO(inputUnit.Hash, 0, outputIdx, input.Output, input.Type)
 
-		// 这笔Stable池中的UTXO是否存在
 		existStableUTXO := boydb.GetDbInstance().IsExistUnspentOutput(preUTXO)
 		ch <- ResultBack{stable: inputUnit.IsStable, exist: existStableUTXO, utxo: preUTXO}
 		break
