@@ -204,4 +204,54 @@ func (tr *Transaction) StableTx(unit types.Unit) ([]types.Commission, bool, erro
 	return commissions, valid, err
 }
 
+func (tr *Transaction) RecvUnit(newUnitEntity types.NewUnitEntity) {
+	tr.chSubmitTx <- newUnitEntity
+}
 
+func (tr *Transaction) SubmitTXLoop(chSubmitTx <-chan types.NewUnitEntity) {
+	for newUnitEntity := range chSubmitTx {
+		newUnit := newUnitEntity.NewUnit
+
+		if signer := core.NewSigner(); !signer.VerifyUnit(newUnit) {
+			log.Println("签名验证失败,不进行存储和广播")
+			continue
+		}
+
+		if err := tr.ReviewUnit(newUnit); err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if err := tr.HandlerNewUnit(newUnit); err != nil {
+			log.Println(err)
+		}
+
+		tr.feed.Send(TXEvent{Kind: NewUnitHandleDone, NewUnitEntity: newUnitEntity})
+	}
+}
+
+func (tr *Transaction) ReviewUnit(unit types.Unit) error {
+
+	isExist := boydb.GetDbInstance().IsExistUnit(unit.Hash)
+	if isExist {
+		return errors.New("已经存在该单元")
+	}
+	if err := tr.ValidUTXOAmount(unit); err != nil {
+		return err
+	} else {
+		log.Println("单元内输入输出金额正确")
+	}
+	tr.muxUnit.Lock()
+
+	mc := NewMainChain()
+	if err := mc.ValidUnit(unit); err != nil {
+		log.Println("单元验证失败,跟最优节点核对主链信息")
+		//eventbus.GetEventBus().Publish("node:ValidUnitErr", )
+		tr.muxUnit.Unlock()
+		return err
+	}
+	tr.muxUnit.Unlock()
+	tr.BackTrackingUTXO(unit)
+
+	return nil
+}
