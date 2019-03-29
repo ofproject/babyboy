@@ -1,7 +1,6 @@
 package transaction
 
 import (
-	"babyboy-dag/boydb"
 	"github.com/babyboy/accounts"
 	"github.com/babyboy/leveldb"
 	"github.com/babyboy/common"
@@ -66,22 +65,6 @@ func (tr *Transaction) ChoiceInputs(from accounts.Account) []types.UTXO {
 	var unSpent []types.UTXO
 	var hasUseStableUnspent []types.UTXO
 
-	pendingUnSpent := tr.FindUnspentTransactionFromPendingPool(from.Address)
-	for _, value := range pendingUnSpent {
-		unSpent = append(unSpent, value)
-
-		lockUTXOs := tr.BackTrackingHasSpentUTXO(value)
-		hasUseStableUnspent = append(hasUseStableUnspent, lockUTXOs...)
-	}
-
-	stableUnSpent := tr.FindUnspentTransactionFromStable(from.Address)
-	for _, value := range stableUnSpent {
-		if tr.isContantUTXO(value, hasUseStableUnspent) {
-			continue
-		} else {
-			unSpent = append(unSpent, value)
-		}
-	}
 
 	log.Println("被锁定的UTXO: ", len(hasUseStableUnspent))
 	for _, u := range hasUseStableUnspent {
@@ -142,8 +125,8 @@ func (tr *Transaction) CreateTx(from accounts.Account, totalAmount *big.Int, tx 
 	for _, u := range unSpent {
 		curAmount = curAmount.Add(curAmount, u.Amount)
 		toOther = append(toOther, u)
-
 		if curAmount.Int64() >= totalSpend {
+			//toOther = append(toOther, u)
 			toMyself = new(big.Int).Sub(curAmount, totalAmount)
 			toMyself = new(big.Int).Sub(toMyself, new(big.Int).SetInt64(ConstHeaderCommission))
 			toMyself = new(big.Int).Sub(toMyself, new(big.Int).SetInt64(ConstPayloadCommission))
@@ -168,6 +151,7 @@ func (tr *Transaction) CreateTx(from accounts.Account, totalAmount *big.Int, tx 
 	}
 
 	var outputs types.Outputs
+
 	outputs = append(outputs, types.NewOutput(common.HexToAddress(tx), big.NewInt(amount)))
 
 	if toMyself.Cmp(new(big.Int).SetInt64(0)) > 0 {
@@ -204,6 +188,56 @@ func (tr *Transaction) StableTx(unit types.Unit) ([]types.Commission, bool, erro
 	return commissions, valid, err
 }
 
+func (tr *Transaction) HandleCommission(units types.Units) []types.Commission {
+
+	witnessCommission := tr.CalcWitnessEarnings(units)
+
+	return witnessCommission
+}
+
+func (tr *Transaction) CalcWitnessEarnings(units types.Units) []types.Commission {
+
+	commissionUnit := units[len(units)-1]
+	commissions := make([]types.Commission, 0)
+
+	for _, unit := range units {
+		unSpent := types.UTXO{UnitHash: unit.Hash, MessageIndex: big.NewInt(int64(0)),
+			OutputIndex: big.NewInt(0), Amount: unit.PayloadCommission, Type: "wc"}
+		commission := types.Commission{Address: commissionUnit.Authors[0].Address, UTXO: unSpent}
+		commissions = append(commissions, commission)
+	}
+
+	return commissions
+}
+
+func (tr *Transaction) GiveMinerEarnings(units types.Units) []types.Commission {
+
+	commissions := make([]types.Commission, 0)
+	for _, unit := range units {
+		minHash := unit.SubStableMinHash
+		minHashAuthor := unit.SubStableAuthor
+
+		minerUnSpent := types.UTXO{UnitHash: minHash, MessageIndex: big.NewInt(int64(0)),
+			OutputIndex: big.NewInt(int64(0)), Amount: big.NewInt(ConstHeaderCommission), Type: "mc"}
+
+		commissions = append(commissions, types.Commission{Address: minHashAuthor, UTXO: minerUnSpent})
+	}
+
+	return commissions
+}
+
+func (tr *Transaction) FindUnspentTransactionFromStable(address common.Address) []types.UTXO {
+	txs := boydb.GetDbInstance().GetUnspentOutput(address)
+
+	return txs
+}
+
+func (tr *Transaction) FindUnspentTransactionFromPendingPool(address common.Address) map[string]types.UTXO {
+	txs := boydb.GetDbInstance().GetUnspentOutputFromPendingPool(address)
+
+	return txs
+}
+
 func (tr *Transaction) RecvUnit(newUnitEntity types.NewUnitEntity) {
 	tr.chSubmitTx <- newUnitEntity
 }
@@ -230,28 +264,3 @@ func (tr *Transaction) SubmitTXLoop(chSubmitTx <-chan types.NewUnitEntity) {
 	}
 }
 
-func (tr *Transaction) ReviewUnit(unit types.Unit) error {
-
-	isExist := boydb.GetDbInstance().IsExistUnit(unit.Hash)
-	if isExist {
-		return errors.New("已经存在该单元")
-	}
-	if err := tr.ValidUTXOAmount(unit); err != nil {
-		return err
-	} else {
-		log.Println("单元内输入输出金额正确")
-	}
-	tr.muxUnit.Lock()
-
-	mc := NewMainChain()
-	if err := mc.ValidUnit(unit); err != nil {
-		log.Println("单元验证失败,跟最优节点核对主链信息")
-		//eventbus.GetEventBus().Publish("node:ValidUnitErr", )
-		tr.muxUnit.Unlock()
-		return err
-	}
-	tr.muxUnit.Unlock()
-	tr.BackTrackingUTXO(unit)
-
-	return nil
-}
